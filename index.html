@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-HK">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Casio fx-3900PV 模擬器</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="page">
+
+  <div class="calculator">
+    <div class="brand">
+      <span class="logo">CASIO</span>
+      <span class="model">fx-3900PV</span>
+    </div>
+    <div class="subtitle">SCIENTIFIC CALCULATOR</div>
+
+    <div class="screen">
+      <div class="solar"><span></span><span></span><span></span><span></span></div>
+      <div class="lcd" id="lcd">
+        <div class="lcd-status">
+          <span class="ind" id="ind-shift">SHIFT</span>
+          <span class="ind" id="ind-hyp">hyp</span>
+          <span class="ind" id="ind-m">M</span>
+          <span class="ind" id="ind-k">K</span>
+          <span class="ind" id="ind-e">E</span>
+          <span class="ind-text" id="ind-mode"></span>
+          <span class="ind-text" id="ind-base"></span>
+          <span class="ind-text" id="ind-disp"></span>
+          <span class="ind-text" id="ind-paren"></span>
+          <span class="ind-text spacer"></span>
+          <span class="ind-text" id="ind-angle">DEG</span>
+        </div>
+        <div class="lcd-main">
+          <span class="mantissa" id="lcd-mantissa">0.</span>
+          <span class="exponent" id="lcd-exponent"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="keypad" id="keypad"></div>
+  </div>
+
+  <aside class="panel">
+    <h1>fx-3900PV 模擬器</h1>
+    <p class="lead">課堂示範用。可用滑鼠按鍵，亦可用鍵盤輸入數字、<code>+ - * /</code>、Enter（=）、Esc（AC）、Backspace（C）、<code>s</code>（SHIFT）、<code>m</code>（MODE）。</p>
+
+    <section>
+      <h2>按鍵記錄</h2>
+      <div class="key-log" id="key-log"></div>
+      <button type="button" id="clear-log">清除記錄</button>
+      <p class="stat-info" id="stat-info"></p>
+    </section>
+
+    <section>
+      <h2>目前模式鍵義</h2>
+      <div class="legend" id="legend"></div>
+    </section>
+
+    <section>
+      <h2>MODE 對照</h2>
+      <table class="modes">
+        <tr><td>MODE 0</td><td>COMP　一般計算</td></tr>
+        <tr><td>MODE 1</td><td>SD　　標準差</td></tr>
+        <tr><td>MODE 2</td><td>LR　　線性迴歸</td></tr>
+        <tr><td>MODE 3</td><td>BASE　數制運算</td></tr>
+        <tr><td>MODE 4／5／6</td><td>DEG／RAD／GRA</td></tr>
+        <tr><td>MODE 7 <i>n</i></td><td>FIX　固定 <i>n</i> 位小數</td></tr>
+        <tr><td>MODE 8 <i>n</i></td><td>SCI　<i>n</i> 位有效數字</td></tr>
+        <tr><td>MODE 9 1／2</td><td>NORM 1／NORM 2</td></tr>
+      </table>
+      <p class="note">預設 NORM 1：絕對值小於 10⁻² 即以指數顯示（例如 1÷1000 顯示 <code>1. ×10⁻⁰³</code>）。要看到 <code>0.001</code>，按 MODE 9 2 轉 NORM 2。</p>
+    </section>
+
+    <p class="disclaimer">非官方模擬器。鍵盤佈局、MODE 編號與部分 SHIFT 位置屬按 Casio 同期機種慣例重建，未逐鍵核對實機；詳見 <code>README.md</code> 的取捨說明。</p>
+  </aside>
+
+</div>
+
+<script src="js/format.js"></script>
+<script src="js/keypad.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>

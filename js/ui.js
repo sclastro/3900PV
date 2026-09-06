@@ -1,0 +1,178 @@
+/*
+ * ui.js —— 介面：由 keypad.js 產生鍵盤、把 engine.js 的顯示狀態畫上 LCD
+ */
+(function () {
+  'use strict';
+
+  var calc = new window.FXEngine.Calculator();
+  var Keypad = window.FXKeypad;
+
+  var el = {
+    keypad: document.getElementById('keypad'),
+    mantissa: document.getElementById('lcd-mantissa'),
+    exponent: document.getElementById('lcd-exponent'),
+    lcd: document.getElementById('lcd'),
+    log: document.getElementById('key-log'),
+    legend: document.getElementById('legend'),
+    statInfo: document.getElementById('stat-info'),
+    clearLog: document.getElementById('clear-log')
+  };
+
+  var INDICATORS = ['shift', 'hyp', 'M', 'K', 'E', 'angle', 'disp', 'mode', 'base', 'paren'];
+  var indEl = {};
+  INDICATORS.forEach(function (name) {
+    indEl[name] = document.getElementById('ind-' + name.toLowerCase());
+  });
+
+  var keyEls = {};
+  var log = [];
+
+  /* ---------- 鍵盤 ---------- */
+
+  function buildKeypad() {
+    Keypad.ROWS.forEach(function (row) {
+      row.forEach(function (key) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'key key-' + key.kind;
+        btn.dataset.id = key.id;
+        btn.innerHTML = '<span class="key-sub"></span><span class="key-label"></span>';
+        btn.addEventListener('click', function () { pressKey(key.id); });
+        el.keypad.appendChild(btn);
+        keyEls[key.id] = btn;
+      });
+    });
+  }
+
+  function refreshKeyLabels() {
+    Keypad.ROWS.forEach(function (row) {
+      row.forEach(function (key) {
+        var v = Keypad.view(key, calc.mode);
+        var btn = keyEls[key.id];
+        btn.querySelector('.key-label').textContent = v.label;
+        btn.querySelector('.key-sub').textContent = v.shift || '';
+        btn.classList.toggle('has-shift', !!v.shift);
+      });
+    });
+  }
+
+  /* ---------- 顯示 ---------- */
+
+  function render() {
+    var d = calc.getDisplay();
+    el.lcd.classList.toggle('off', !d.on);
+    el.mantissa.textContent = d.mantissa;
+    el.exponent.textContent = d.exponent === null ? '' : d.exponent;
+    el.mantissa.classList.toggle('long', d.mantissa.length > 13);
+
+    var ind = d.indicators;
+    setInd('shift', ind.shift && d.on);
+    setInd('hyp', ind.hyp && d.on);
+    setInd('M', ind.m && d.on);
+    setInd('K', ind.k && d.on);
+    setInd('E', ind.error && d.on);
+    text('angle', d.on ? ind.angle : '');
+    text('disp', d.on && ind.disp ? ind.disp : '');
+    text('mode', d.on && ind.mode ? ind.mode : '');
+    text('base', d.on && ind.base ? ind.base : '');
+    text('paren', d.on && ind.paren ? '(' + ind.paren : '');
+
+    if (ind.pendingMode) {
+      el.statInfo.textContent = ind.pendingMode === 'mode'
+        ? 'MODE 已按下，請輸入 0–9'
+        : '請輸入位數 0–9';
+    } else if (calc.mode === 'SD' || calc.mode === 'LR') {
+      el.statInfo.textContent = '已輸入資料：' + ind.statCount + ' 組';
+    } else {
+      el.statInfo.textContent = '';
+    }
+    refreshKeyLabels();
+    renderLegend();
+  }
+
+  function setInd(name, on) {
+    if (indEl[name]) { indEl[name].classList.toggle('on', !!on); }
+  }
+
+  function text(name, s) {
+    if (indEl[name]) { indEl[name].textContent = s; }
+  }
+
+  /* ---------- 側欄 ---------- */
+
+  var MODE_NOTE = {
+    COMP: '一般計算。函數為後置輸入：先按數值，再按 sin、x² 等。',
+    SD: '單變數統計。輸入：x [DT]；帶次數 x [×] f [DT] 或 x [SHIFT ,] f [DT]。',
+    LR: '線性迴歸。輸入：x [SHIFT ,] y [DT]（可再加次數）。',
+    BASE: '數制運算（32 位二補數）。SHIFT + x⁻¹/x²/xʸ/log 切換 DEC/HEX/BIN/OCT。'
+  };
+
+  function renderLegend() {
+    var rows = [];
+    Keypad.ROWS.forEach(function (row) {
+      row.forEach(function (key) {
+        var v = Keypad.view(key, calc.mode);
+        if (v.shift) { rows.push('<tr><td>' + v.label + '</td><td>' + v.shift + '</td></tr>'); }
+      });
+    });
+    el.legend.innerHTML =
+      '<p class="mode-note">' + MODE_NOTE[calc.mode] + '</p>' +
+      '<table><thead><tr><th>鍵</th><th>SHIFT 功能</th></tr></thead><tbody>' +
+      rows.join('') + '</tbody></table>';
+  }
+
+  function renderLog() {
+    el.log.textContent = log.join(' ');
+    el.log.scrollTop = el.log.scrollHeight;
+  }
+
+  /* ---------- 輸入 ---------- */
+
+  function pressKey(id) {
+    var key = Keypad.BY_ID[id];
+    if (!key) { return; }
+    var v = Keypad.view(key, calc.mode);
+    var label = calc.shift && v.shift ? v.shift : v.label;
+    if (id !== 'shift') { log.push(label); }
+    if (log.length > 300) { log.splice(0, log.length - 300); }
+    calc.press(id);
+    flash(id);
+    render();
+    renderLog();
+  }
+
+  function flash(id) {
+    var btn = keyEls[id];
+    if (!btn) { return; }
+    btn.classList.add('pressed');
+    setTimeout(function () { btn.classList.remove('pressed'); }, 90);
+  }
+
+  var KEYMAP = {
+    '0': 'd0', '1': 'd1', '2': 'd2', '3': 'd3', '4': 'd4', '5': 'd5',
+    '6': 'd6', '7': 'd7', '8': 'd8', '9': 'd9', '.': 'dot',
+    '+': 'add', '-': 'sub', '*': 'mul', '/': 'div',
+    '=': 'equals', 'Enter': 'equals', '(': 'open', ')': 'close',
+    'Escape': 'ac', 'Backspace': 'clear', 'Delete': 'clear',
+    's': 'shift', 'S': 'shift', 'm': 'mode', 'M': 'mode'
+  };
+
+  document.addEventListener('keydown', function (ev) {
+    if (ev.ctrlKey || ev.altKey || ev.metaKey) { return; }
+    var id = KEYMAP[ev.key];
+    if (!id) { return; }
+    ev.preventDefault();
+    pressKey(id);
+  });
+
+  el.clearLog.addEventListener('click', function () {
+    log = [];
+    renderLog();
+  });
+
+  buildKeypad();
+  render();
+  renderLog();
+
+  window.fx = calc;   // 方便在主控台示範
+})();
