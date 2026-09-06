@@ -1,5 +1,5 @@
 /*
- * engine.js —— fx-3900PV 運算核心（不觸碰 DOM，可獨立在 Node 下測試）
+ * engine.js —— fx-3600Pv 運算核心（不觸碰 DOM，可獨立在 Node 下測試）
  *
  * 設計要點：
  *   1. 即時執行（immediate execution）＋ 真正代數優先次序：按下運算子時會先
@@ -63,6 +63,47 @@
     return r;
   }
 
+  // nPr = a!/(a-b)!，逐項相乘以免中途溢位
+  function permutation(a, b) {
+    if (a < 0 || b < 0 || a !== Math.floor(a) || b !== Math.floor(b) || b > a) { return NaN; }
+    var r = 1;
+    for (var i = 0; i < b; i++) { r *= (a - i); }
+    return r;
+  }
+
+  // 找出 v 的分數表示（分母上限 maxDen），找不到回傳 null
+  function toFraction(v, maxDen) {
+    if (!isFinite(v) || Math.abs(v) >= 1e10) { return null; }
+    var neg = v < 0;
+    var a = Math.abs(v);
+    for (var den = 1; den <= maxDen; den++) {
+      var num = a * den;
+      var rounded = Math.round(num);
+      if (Math.abs(num - rounded) < 1e-9 * Math.max(1, num)) {
+        return { neg: neg, num: rounded, den: den };
+      }
+    }
+    return null;
+  }
+
+  /*
+   * 分數顯示：真機以「⌐」分隔整數、分子、分母，總位數超過 10 位即改回小數。
+   * improper 為真時顯示假分數（[d/c] 切換）。
+   */
+  function fracText(v, improper) {
+    var f = toFraction(v, 9999);
+    if (!f || f.den === 1) { return null; }
+    var whole = 0;
+    var num = f.num;
+    if (!improper) {
+      whole = Math.floor(num / f.den);
+      num -= whole * f.den;
+    }
+    var digits = String(whole || '').length + String(num).length + String(f.den).length;
+    if (digits > 10) { return null; }
+    return (f.neg ? '-' : '') + (whole ? whole + '⌐' : '') + num + '⌐' + f.den;
+  }
+
   function toInt32(v) {
     if (!isFinite(v)) { return NaN; }
     return Math.trunc(v) | 0;
@@ -82,7 +123,9 @@
     and:   { p: 1, bp: 2, f: function (a, b) { return a & b; } },
     or:    { p: 1, bp: 1, f: function (a, b) { return a | b; } },
     xor:   { p: 1, bp: 1, f: function (a, b) { return a ^ b; } },
-    xnor:  { p: 1, bp: 1, f: function (a, b) { return ~(a ^ b); } }
+    xnor:  { p: 1, bp: 1, f: function (a, b) { return ~(a ^ b); } },
+    npr:   { p: 3, bp: 4, f: function (a, b) { return permutation(a, b); } },
+    ncr:   { p: 3, bp: 4, f: function (a, b) { return permutation(a, b) / factorial(b); } }
   };
 
   var BASE_RADIX = { DEC: 10, HEX: 16, BIN: 2, OCT: 8 };
@@ -90,7 +133,7 @@
   /* ---------- 輸入緩衝 ---------- */
 
   function newEntry() {
-    return { digits: '0', point: false, neg: false, exp: null, expNeg: false };
+    return { digits: '0', point: false, neg: false, exp: null, expNeg: false, parts: null };
   }
 
   function entryDigitCount(e) {
@@ -98,6 +141,13 @@
   }
 
   function entryValue(e) {
+    if (e.parts && e.parts.length) {
+      var nums = e.parts.concat([e.digits]).map(Number);
+      var v = nums.length === 2
+        ? (nums[1] === 0 ? NaN : nums[0] / nums[1])
+        : (nums[2] === 0 ? NaN : nums[0] + nums[1] / nums[2]);
+      return e.neg ? -v : v;
+    }
     var t = (e.neg ? '-' : '') + e.digits;
     if (e.exp !== null) {
       t += 'e' + (e.expNeg ? '-' : '') + (e.exp === '' ? '0' : e.exp);
@@ -107,6 +157,9 @@
   }
 
   function entryText(e) {
+    if (e.parts && e.parts.length) {
+      return (e.neg ? '-' : '') + e.parts.join('⌐') + '⌐' + e.digits;
+    }
     var t = e.digits;
     if (!e.point) { t += '.'; }
     return (e.neg ? '-' : '') + t;
@@ -130,6 +183,9 @@
     this.shift = false;
     this.hypPending = false;
     this.pendingMode = null;
+    this.pendingKout = false;
+    this.fracImproper = false;
+    this.note = null;
     this.clearAll();
   };
 
@@ -147,6 +203,8 @@
     this.commaBuf = [];
     this.dmsBuf = [];
     this.hypPending = false;
+    this.pendingKout = false;
+    this.fracUsed = false;
   };
 
   Calculator.prototype.top = function () { return this.frames[this.frames.length - 1]; };
@@ -328,9 +386,19 @@
   /* ---------- 按鍵 ---------- */
 
   Calculator.prototype.press = function (id) {
-    var action = Keypad.resolve(id, this.mode, this.shift);
     var wasShift = this.shift;
+    this.note = null;
     if (id !== 'shift' && wasShift) { this.shift = false; }
+    // [Kout] 之後直接按數字鍵：在 SD／LR 讀取該鍵左方括號的統計變數
+    if (this.pendingKout && !wasShift && id !== 'shift') {
+      this.pendingKout = false;
+      var name = Keypad.KOUT_STAT[id];
+      if (name && (this.mode === 'SD' || this.mode === 'LR')) {
+        this.statRecall(name);
+        return this.getDisplay();
+      }
+    }
+    var action = Keypad.resolve(id, this.mode, wasShift);
     if (action) { this.exec(action); }
     return this.getDisplay();
   };
@@ -342,7 +410,7 @@
       return;
     }
     // 錯誤狀態下只認 [AC]／[C]／[SHIFT]
-    if (this.error && action !== 'ac' && action !== 'clear' && action !== 'shift' && action !== 'off') {
+    if (this.error && action !== 'ac' && action !== 'clear' && action !== 'shift') {
       return;
     }
     // MODE 之後等待數字選擇
@@ -351,20 +419,38 @@
         this.modeSelect(parseInt(action.slice(6), 10));
         return;
       }
+      if (this.pendingMode === 'mode' && action === 'point') {   // MODE · = RUN
+        this.pendingMode = null;
+        this.mode = 'COMP';
+        this.clearAll();
+        return;
+      }
+      if (this.pendingMode === 'mode' && action === 'exp') {     // MODE EXP = LRN
+        this.pendingMode = null;
+        this.note = '本模擬器未實作程式輸入模式（LRN）';
+        return;
+      }
       if (action !== 'shift') { this.pendingMode = null; }
     }
 
     if (action.indexOf('digit:') === 0) { this.inputDigit(action.slice(6)); return; }
     if (action.indexOf('hex:') === 0) { this.inputDigit(action.slice(4)); return; }
-    if (action.indexOf('base:') === 0) { this.changeBase(action.slice(5)); return; }
+    if (action.indexOf('base:') === 0) {
+      if (this.mode !== 'BASE') { this.note = 'DEC／HEX／BIN／OCT 只在 BASE-N 模式（MODE 0）有效'; return; }
+      this.changeBase(action.slice(5));
+      return;
+    }
     if (action.indexOf('stat:') === 0) { this.statRecall(action.slice(5)); return; }
+    if (action.indexOf('prog:') === 0) {
+      this.note = '本模擬器未實作程式功能（' + action.slice(5) + '）';
+      return;
+    }
     if (OPS[action] && action !== 'pol' && action !== 'rec') { this.applyOperator(action); return; }
 
     switch (action) {
       case 'shift': this.shift = !this.shift; break;
       case 'mode': this.pendingMode = 'mode'; break;
       case 'ac': this.clearAll(); break;
-      case 'off': this.on = false; break;
       case 'clear': this.error = false; this.entry = null; this.x = 0; this.override = null; break;
       case 'point': this.inputPoint(); break;
       case 'exp': this.inputExp(); break;
@@ -397,7 +483,6 @@
       case 'mplus': this.memoryAdd(1); break;
       case 'mminus': this.memoryAdd(-1); break;
       case 'kin': this.memK = this.commitEntry(); this.setValue(this.memK); break;
-      case 'kout': this.setValue(this.memK === null ? 0 : this.memK); this.opPending = false; break;
       case 'dms': this.dmsKey(); break;
       case 'todms': this.override = { mantissa: dmsText(this.commitEntry()), exponent: null }; break;
       case 'eng': this.engKey(-1); break;
@@ -406,6 +491,13 @@
       case 'dt': this.dataInput(); break;
       case 'statclear': this.statData = []; this.commaBuf = []; break;
       case 'statdel': this.statData.pop(); break;
+      case 'kout': this.koutKey(); break;
+      case 'swapk': this.swapXK(); break;
+      case 'kac': this.memK = null; this.statData = []; this.commaBuf = []; break;
+      case 'frac': this.fracKey(); break;
+      case 'improper': this.fracImproper = !this.fracImproper; break;
+      case 'cbrt': this.unary(function (v) { return nthRoot(v, 3); }); break;
+      case 'npr': case 'ncr': this.applyOperator(action); break;
       default: break;
     }
   };
@@ -425,10 +517,10 @@
     if (state === 'sci') { this.disp = { type: 'SCI', n: d }; return; }
     if (state === 'norm') { this.disp = { type: 'NORM', n: d === 2 ? 2 : 1 }; return; }
     switch (d) {
-      case 0: this.mode = 'COMP'; this.clearAll(); break;
-      case 1: this.mode = 'SD'; this.statData = []; this.clearAll(); break;
+      case 0: this.mode = 'BASE'; this.base = 'DEC'; this.clearAll(); this.x = 0; break;
+      case 1: this.note = '本模擬器未實作積分運算（∫dx）'; break;
       case 2: this.mode = 'LR'; this.statData = []; this.clearAll(); break;
-      case 3: this.mode = 'BASE'; this.base = 'DEC'; this.clearAll(); this.x = 0; break;
+      case 3: this.mode = 'SD'; this.statData = []; this.clearAll(); break;
       case 4: this.angle = 'DEG'; break;
       case 5: this.angle = 'RAD'; break;
       case 6: this.angle = 'GRA'; break;
@@ -442,7 +534,14 @@
   /* ---------- 數值輸入 ---------- */
 
   Calculator.prototype.startEntry = function () {
-    if (!this.entry) { this.entry = newEntry(); this.override = null; this.engActive = false; }
+    if (!this.entry) {
+      if (!this.opPending && this.frames.length === 1 && !this.frames[0].stack.length) {
+        this.fracUsed = false;      // 上一條算式已完結，重新開始
+      }
+      this.entry = newEntry();
+      this.override = null;
+      this.engActive = false;
+    }
     this.opPending = false;
   };
 
@@ -606,6 +705,47 @@
     });
   };
 
+  /*
+   * [Kout]：在 COMP／BASE 讀回常數記憶 K；在 SD／LR 則等待下一個數字鍵，
+   * 以讀取該鍵下方左方括號的統計變數（x̄、xσn、A、B、r 等）。
+   */
+  Calculator.prototype.koutKey = function () {
+    if (this.mode === 'SD' || this.mode === 'LR') {
+      this.pendingKout = true;
+      return;
+    }
+    this.setValue(this.memK === null ? 0 : this.memK);
+    this.opPending = false;
+  };
+
+  // [SHIFT][Kout] X↔K：顯示值與常數記憶互換
+  Calculator.prototype.swapXK = function () {
+    var v = this.commitEntry();
+    this.setValue(this.memK === null ? 0 : this.memK);
+    this.memK = v;
+    this.opPending = false;
+  };
+
+  /*
+   * [a b/c]：輸入中則加一個分隔（整數⌐分子⌐分母）；沒有輸入中則把目前結果
+   * 在分數與小數之間切換。
+   */
+  Calculator.prototype.fracKey = function () {
+    if (this.mode === 'BASE') { return; }
+    if (!this.entry) {
+      if (this.fracUsed) { this.fracUsed = false; }
+      else if (fracText(this.x, this.fracImproper)) { this.fracUsed = true; }
+      else { this.note = '此數值無法以分數顯示'; }
+      return;
+    }
+    var e = this.entry;
+    if (!e.parts) { e.parts = []; }
+    if (e.parts.length >= 2 || e.point || e.exp !== null) { return; }
+    e.parts.push(e.digits);
+    e.digits = '0';
+    this.fracUsed = true;
+  };
+
   Calculator.prototype.swapXY = function () {
     var v = this.commitEntry();
     this.setValue(this.yValue);
@@ -659,14 +799,15 @@
     var t = frame.stack[frame.stack.length - 1];
     var x, y = 0, f = 1;
     if (this.mode === 'SD') {
+      // x [DATA]，或 x [×] 次數 [DATA]
       if (vals.length >= 2) { x = vals[0]; f = vals[1]; }
       else if (t && t.op === 'mul') { frame.stack.pop(); x = t.value; f = v; }
       else { x = v; }
     } else {
-      x = vals[0];
-      y = vals.length > 1 ? vals[1] : 0;
-      f = vals.length > 2 ? vals[2] : 1;
-      if (vals.length === 1 && t && t.op === 'mul') { frame.stack.pop(); x = t.value; y = v; }
+      // x [×] y [DATA]
+      if (t && t.op === 'mul') { frame.stack.pop(); x = t.value; y = v; }
+      else if (vals.length >= 2) { x = vals[0]; y = vals[1]; }
+      else { x = v; y = 0; this.note = 'LR 模式應輸入 x [×] y [DATA]'; }
     }
     if (!isFinite(x) || !isFinite(y) || !isFinite(f) || f <= 0) { this.error = true; return; }
     this.statData.push({ x: x, y: y, f: f });
@@ -705,6 +846,8 @@
       base: this.mode === 'BASE' ? this.base : null,
       paren: this.frames.length - 1,
       pendingMode: this.pendingMode,
+      pendingKout: this.pendingKout,
+      note: this.note,
       statCount: this.statData.length
     };
     if (!this.on) { return { on: false, mantissa: '', exponent: null, indicators: ind }; }
@@ -726,6 +869,10 @@
     if (this.mode === 'BASE') {
       return { on: true, mantissa: this.baseText(this.x), exponent: null, indicators: ind };
     }
+    if (this.fracUsed) {
+      var ft = fracText(this.x, this.fracImproper);
+      if (ft) { return { on: true, mantissa: ft, exponent: null, indicators: ind }; }
+    }
     var f = Format.formatValue(this.x, this.disp);
     return { on: true, mantissa: f.mantissa, exponent: f.exponent, indicators: ind };
   };
@@ -745,7 +892,7 @@
     '5': 'd5', '6': 'd6', '7': 'd7', '8': 'd8', '9': 'd9',
     '+': 'add', '-': 'sub', '−': 'sub', '*': 'mul', '×': 'mul',
     '/': 'div', '÷': 'div', '=': 'equals', '(': 'open', ')': 'close',
-    '.': 'dot', 'AC': 'ac', 'S': 'shift'
+    '.': 'dot', 'AC': 'ac', 'S': 'shift', 'DATA': 'run', 'DT': 'run'
   };
 
   // run('2 + 3 =')、run('S sin') —— 以空白分隔的鍵序列

@@ -1,5 +1,7 @@
 /*
  * ui.js —— 介面：由 keypad.js 產生鍵盤、把 engine.js 的顯示狀態畫上 LCD
+ *
+ * 鍵盤分兩區：函數區 6 欄、數字區 5 欄，故用 30 欄的 grid，各鍵按 row.span 佔格。
  */
 (function () {
   'use strict';
@@ -31,12 +33,14 @@
 
   function buildKeypad() {
     Keypad.ROWS.forEach(function (row) {
-      row.forEach(function (key) {
+      row.keys.forEach(function (key) {
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'key key-' + key.kind;
         btn.dataset.id = key.id;
-        btn.innerHTML = '<span class="key-sub"></span><span class="key-label"></span>';
+        btn.style.gridColumn = 'span ' + row.span;
+        btn.innerHTML = '<span class="key-sub"></span><span class="key-label"></span>' +
+                        '<span class="key-foot"></span>';
         btn.addEventListener('click', function () { pressKey(key.id); });
         el.keypad.appendChild(btn);
         keyEls[key.id] = btn;
@@ -45,14 +49,12 @@
   }
 
   function refreshKeyLabels() {
-    Keypad.ROWS.forEach(function (row) {
-      row.forEach(function (key) {
-        var v = Keypad.view(key, calc.mode);
-        var btn = keyEls[key.id];
-        btn.querySelector('.key-label').textContent = v.label;
-        btn.querySelector('.key-sub').textContent = v.shift || '';
-        btn.classList.toggle('has-shift', !!v.shift);
-      });
+    Keypad.ALL.forEach(function (key) {
+      var v = Keypad.view(key, calc.mode);
+      var btn = keyEls[key.id];
+      btn.querySelector('.key-label').textContent = v.label;
+      btn.querySelector('.key-sub').textContent = v.shift || '';
+      btn.querySelector('.key-foot').textContent = v.foot || '';
     });
   }
 
@@ -77,9 +79,13 @@
     text('base', d.on && ind.base ? ind.base : '');
     text('paren', d.on && ind.paren ? '(' + ind.paren : '');
 
-    if (ind.pendingMode) {
+    if (ind.note) {
+      el.statInfo.textContent = ind.note;
+    } else if (ind.pendingKout) {
+      el.statInfo.textContent = 'Kout 已按下，請按數字鍵讀取統計值';
+    } else if (ind.pendingMode) {
       el.statInfo.textContent = ind.pendingMode === 'mode'
-        ? 'MODE 已按下，請輸入 0–9'
+        ? 'MODE 已按下，請按 · 、EXP 或 0–9'
         : '請輸入位數 0–9';
     } else if (calc.mode === 'SD' || calc.mode === 'LR') {
       el.statInfo.textContent = '已輸入資料：' + ind.statCount + ' 組';
@@ -101,19 +107,17 @@
   /* ---------- 側欄 ---------- */
 
   var MODE_NOTE = {
-    COMP: '一般計算。函數為後置輸入：先按數值，再按 sin、x² 等。',
-    SD: '單變數統計。輸入：x [DT]；帶次數 x [×] f [DT] 或 x [SHIFT ,] f [DT]。',
-    LR: '線性迴歸。輸入：x [SHIFT ,] y [DT]（可再加次數）。',
-    BASE: '數制運算（32 位二補數）。SHIFT + x⁻¹/x²/xʸ/log 切換 DEC/HEX/BIN/OCT。'
+    COMP: 'RUN（一般計算）。函數為後置輸入：先按數值，再按 sin、√ 等。',
+    SD: '單變數統計。輸入 x [RUN]，帶次數 x [×] 次數 [RUN]。統計值：[Kout] + 數字鍵取鍵下左方括號的值，[SHIFT] + 數字鍵取右方括號的值。',
+    LR: '線性迴歸。輸入 x [×] y [RUN]。統計值：[Kout] + 數字鍵（7=A、8=B、9=r），[SHIFT] + 數字鍵取右方括號的值。',
+    BASE: 'BASE-N 數制運算（32 位二補數）。[DEC] [HEX] 及其 SHIFT 的 [BIN] [OCT] 切換基數；A–F 在 +/− 至 tan 一行。'
   };
 
   function renderLegend() {
     var rows = [];
-    Keypad.ROWS.forEach(function (row) {
-      row.forEach(function (key) {
-        var v = Keypad.view(key, calc.mode);
-        if (v.shift) { rows.push('<tr><td>' + v.label + '</td><td>' + v.shift + '</td></tr>'); }
-      });
+    Keypad.ALL.forEach(function (key) {
+      var v = Keypad.view(key, calc.mode);
+      if (v.shift) { rows.push('<tr><td>' + v.label + '</td><td>' + v.shift + '</td></tr>'); }
     });
     el.legend.innerHTML =
       '<p class="mode-note">' + MODE_NOTE[calc.mode] + '</p>' +

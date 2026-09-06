@@ -1,16 +1,19 @@
-/* fx-3900PV 模擬器樣式 —— 深灰機身、綠灰 LCD、橙色 SHIFT 標籤 */
+/* fx-3600Pv 模擬器樣式 —— 銀灰機身、綠灰 LCD、橙色 SHIFT 標籤 */
 
 :root {
-  --body: #2f3336;
-  --body-edge: #1d2022;
-  --key: #4a4f53;
-  --key-edge: #6a7075;
-  --key-text: #f1f3f4;
-  --shift-text: #f0a83c;
-  --num-key: #5b6165;
-  --op-key: #3f4448;
-  --ac-key: #7a4442;
-  --eq-key: #46626d;
+  --body: #1a1c1e;
+  --body-edge: #0e0f10;
+  --panel-face: #c9cbc6;
+  --key: #f0efec;
+  --key-text: #22262a;
+  --shift-text: #b8651c;
+  --foot-text: #5d6166;
+  --num-key: #3a3d40;
+  --num-text: #f4f5f6;
+  --op-key: #3a3d40;
+  --ac-key: #b03a34;
+  --eq-key: #3a3d40;
+  --run-key: #2f6fb5;
   --lcd-bg: #a9b3a2;
   --lcd-text: #1a1f18;
   --page-bg: #edeae4;
@@ -49,23 +52,26 @@ body {
   border-radius: 14px;
   padding: 16px 16px 20px;
   box-shadow: 0 10px 28px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .12);
-  color: var(--key-text);
+  color: #f1f3f4;
 }
 
 .brand {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
 }
 
-.logo { font-weight: 700; letter-spacing: .14em; font-size: 17px; }
-.model { font-size: 15px; letter-spacing: .04em; color: #d7dbde; }
-
-.subtitle {
-  font-size: 9px;
-  letter-spacing: .18em;
-  color: #9aa1a6;
-  margin-bottom: 10px;
+.logo { font-weight: 700; letter-spacing: .1em; font-size: 17px; }
+.model { font-size: 15px; letter-spacing: .02em; color: #e6e9ec; font-style: italic; }
+.model em { font-style: italic; }
+.program {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  font-style: italic;
+  letter-spacing: .08em;
+  color: #e8c33a;
 }
 
 /* ---------- LCD ---------- */
@@ -142,55 +148,110 @@ body {
   margin-top: 2px;
 }
 
+/* 真機印在液晶下方的模式對照條 */
+
+.mode-strip {
+  display: flex;
+  align-items: stretch;
+  margin-top: 8px;
+  background: #f3f2ee;
+  border: 1px solid #8d8f8b;
+  border-radius: 2px;
+  font-size: 8px;
+  line-height: 1.45;
+  color: #16181a;
+  overflow: hidden;
+}
+
+.mode-strip .mode-label {
+  padding: 3px 5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  border-right: 1px solid #8d8f8b;
+  display: flex;
+  align-items: center;
+}
+
+.mode-strip .cell {
+  flex: 1;
+  padding: 3px 4px;
+  border-right: 1px solid #8d8f8b;
+  white-space: nowrap;
+}
+
+.mode-strip .cell:last-child { border-right: none; }
+.mode-strip b { font-weight: 700; }
+.mode-strip .base { background: #c9e6c4; }
+.mode-strip .integ { background: #f3d98c; }
+.mode-strip .lr, .mode-strip .sd { background: #b9cfe8; }
+
+.footnote {
+  margin-top: 8px;
+  font-size: 8px;
+  letter-spacing: .1em;
+  color: #8c9298;
+  text-align: right;
+}
+
 /* ---------- 鍵盤 ---------- */
 
 .keypad {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 7px;
+  grid-template-columns: repeat(30, 1fr);
+  gap: 5px 4px;
+  background: var(--panel-face);
+  padding: 10px 8px 14px;
+  border-radius: 4px;
 }
 
 .key {
   position: relative;
-  min-height: 42px;
-  padding: 12px 2px 4px;
+  min-height: 46px;
+  padding: 11px 1px 9px;
   border: none;
-  border-radius: 5px;
+  border-radius: 4px;
   background: var(--key);
   color: var(--key-text);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
-  box-shadow: 0 2px 0 rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .1);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, .4), inset 0 1px 0 rgba(255, 255, 255, .6);
   transition: transform .05s, box-shadow .05s;
 }
 
-.key:hover { background: #565c60; }
+.key:hover { filter: brightness(.94); }
 .key.pressed, .key:active {
   transform: translateY(2px);
   box-shadow: 0 0 0 rgba(0, 0, 0, .4), inset 0 1px 3px rgba(0, 0, 0, .5);
 }
 
-.key-sub {
+.key-sub, .key-foot {
   position: absolute;
-  top: 2px;
   left: 0;
   right: 0;
-  font-size: 8.5px;
-  color: var(--shift-text);
+  font-size: 7.5px;
   line-height: 1.1;
   white-space: nowrap;
   overflow: hidden;
 }
 
-.key-label { display: block; font-size: 14px; line-height: 1.2; }
+.key-sub { top: 2px; color: var(--shift-text); }
+.key-foot { bottom: 1px; color: var(--foot-text); }
 
-.key-num { background: var(--num-key); font-weight: 600; }
-.key-op { background: var(--op-key); }
-.key-ac { background: var(--ac-key); }
-.key-eq { background: var(--eq-key); font-weight: 700; }
-.key[data-id="shift"] { background: #8a6321; }
-.key[data-id="mode"] { background: #3d5560; }
+.key-label { display: block; font-size: 13px; line-height: 1.2; }
+
+.key-num, .key-op, .key-eq {
+  background: var(--num-key);
+  color: var(--num-text);
+  font-weight: 600;
+}
+
+.key-ac { background: var(--ac-key); color: #fff; font-weight: 700; }
+.key-run { background: var(--run-key); color: #fff; font-weight: 700; }
+.key-shift { background: #f2c218; font-weight: 700; }
+.key-mode { background: var(--key); }
+.key-num .key-foot, .key-op .key-foot, .key-eq .key-foot { color: #b9bdc1; }
+.key[data-id="c"] { background: var(--ac-key); color: #fff; font-weight: 700; }
 
 /* ---------- 側欄 ---------- */
 

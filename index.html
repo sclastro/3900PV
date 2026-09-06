@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Casio fx-3900PV 模擬器</title>
+<title>Casio fx-3600Pv 模擬器</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -13,12 +13,11 @@
   <div class="calculator">
     <div class="brand">
       <span class="logo">CASIO</span>
-      <span class="model">fx-3900PV</span>
+      <span class="model">fx-3600<em>Pv</em></span>
+      <span class="program">PROGRAM Pv</span>
     </div>
-    <div class="subtitle">SCIENTIFIC CALCULATOR</div>
 
     <div class="screen">
-      <div class="solar"><span></span><span></span><span></span><span></span></div>
       <div class="lcd" id="lcd">
         <div class="lcd-status">
           <span class="ind" id="ind-shift">SHIFT</span>
@@ -38,13 +37,26 @@
           <span class="exponent" id="lcd-exponent"></span>
         </div>
       </div>
+
+      <!-- 真機印在液晶下方的模式對照條 -->
+      <div class="mode-strip">
+        <span class="mode-label">MODE ▶</span>
+        <span class="cell"><b>·</b> RUN<br><b>4</b> DEG</span>
+        <span class="cell"><b>EXP</b> LRN<br><b>5</b> RAD</span>
+        <span class="cell base"><b>0</b> BASE-N<br><b>6</b> GRA</span>
+        <span class="cell integ"><b>1</b> ∫dx<br><b>7</b> FIX</span>
+        <span class="cell lr"><b>2</b> LR<br><b>8</b> SCI</span>
+        <span class="cell sd"><b>3</b> SD<br><b>9</b> NORM</span>
+      </div>
+      <div class="solar"><span></span><span></span><span></span><span></span></div>
     </div>
 
     <div class="keypad" id="keypad"></div>
+    <div class="footnote">AUTO POWER-OFF</div>
   </div>
 
   <aside class="panel">
-    <h1>fx-3900PV 模擬器</h1>
+    <h1>fx-3600Pv 模擬器</h1>
     <p class="lead">課堂示範用。可用滑鼠按鍵，亦可用鍵盤輸入數字、<code>+ - * /</code>、Enter（=）、Esc（AC）、Backspace（C）、<code>s</code>（SHIFT）、<code>m</code>（MODE）。</p>
 
     <section>
@@ -60,21 +72,16 @@
     </section>
 
     <section>
-      <h2>MODE 對照</h2>
-      <table class="modes">
-        <tr><td>MODE 0</td><td>COMP　一般計算</td></tr>
-        <tr><td>MODE 1</td><td>SD　　標準差</td></tr>
-        <tr><td>MODE 2</td><td>LR　　線性迴歸</td></tr>
-        <tr><td>MODE 3</td><td>BASE　數制運算</td></tr>
-        <tr><td>MODE 4／5／6</td><td>DEG／RAD／GRA</td></tr>
-        <tr><td>MODE 7 <i>n</i></td><td>FIX　固定 <i>n</i> 位小數</td></tr>
-        <tr><td>MODE 8 <i>n</i></td><td>SCI　<i>n</i> 位有效數字</td></tr>
-        <tr><td>MODE 9 1／2</td><td>NORM 1／NORM 2</td></tr>
-      </table>
-      <p class="note">預設 NORM 1：絕對值小於 10⁻² 即以指數顯示（例如 1÷1000 顯示 <code>1. ×10⁻⁰³</code>）。要看到 <code>0.001</code>，按 MODE 9 2 轉 NORM 2。</p>
+      <h2>統計變數的讀取</h2>
+      <p class="note">數字鍵下方的方括號標籤即統計變數：<b>[Kout] + 數字鍵</b>讀左邊一個，<b>[SHIFT] + 數字鍵</b>讀右邊一個。例如 SD 模式按 <code>Kout 1</code> 得 x̄、按 <code>SHIFT 3</code> 得 n；LR 模式按 <code>Kout 7</code>、<code>Kout 8</code>、<code>Kout 9</code> 分別得 A、B、r。</p>
     </section>
 
-    <p class="disclaimer">非官方模擬器。鍵盤佈局、MODE 編號與部分 SHIFT 位置屬按 Casio 同期機種慣例重建，未逐鍵核對實機；詳見 <code>README.md</code> 的取捨說明。</p>
+    <section>
+      <h2>未實作的功能</h2>
+      <p class="note">程式功能（P1、P2、LRN、PCL、RUN、x&gt;0、x≧M、RTN、ENT、HLT）與積分（MODE 1 ∫dx）畫出咗鍵位但未實作，按下會在上方提示。其餘功能皆可用。</p>
+    </section>
+
+    <p class="disclaimer">非官方模擬器，與 Casio 並無關係。鍵位與模式編號依實機照片重建；仍有未能核實之處（尤其統計變數的兩組方括號標籤的讀取方式），詳見 <code>README.md</code>。</p>
   </aside>
 
 </div>

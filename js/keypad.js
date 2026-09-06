@@ -1,9 +1,14 @@
 /*
- * keypad.js —— 鍵盤佈局與各模式下的鍵義
+ * keypad.js —— fx-3600Pv 鍵盤佈局
  *
- * 每個鍵有主功能（action）與 SHIFT 功能（shiftAction）；部分鍵在 SD／LR／BASE
- * 模式下另有定義，放在 modes 內覆寫。引擎只認 action 字串，UI 只認 label，
- * 兩者靠本檔連繫。
+ * 依實機照片重建：上半函數區 6 欄 × 4 行，下半數字區 5 欄 × 4 行。
+ * 每鍵三組標籤：
+ *   label —— 鍵面主功能
+ *   shift —— 鍵上方橙字（SHIFT 功能）
+ *   foot  —— 鍵下方小字（BASE-N 的 A–F 與邏輯運算，或統計變數的方括號標籤）
+ * SD／LR／BASE 模式下的鍵義差異放在 modes 內覆寫。
+ *
+ * 統計變數的讀取方式：Kout + 數字鍵取左方括號的值，SHIFT + 數字鍵取右方括號的值。
  */
 (function (root, factory) {
   'use strict';
@@ -17,159 +22,164 @@
     var key = {
       id: id, label: label, action: action,
       shift: shift || null, shiftAction: shiftAction || null,
-      kind: 'fn', modes: null
+      foot: null, kind: 'fn', modes: null
     };
     if (extra) { for (var p in extra) { key[p] = extra[p]; } }
     return key;
   }
 
+  // 統計變數在 SD／LR 下的鍵面小字與 SHIFT 功能
+  function stat(footL, footR, shiftLabel, shiftAction) {
+    return {
+      foot: footR ? '⌊' + footL + '⌋⌊' + footR + '⌋' : '⌊' + footL + '⌋',
+      shift: shiftLabel || null,
+      shiftAction: shiftAction || null
+    };
+  }
+
   var ROWS = [
-    [
+    // ---- 函數區：6 欄 ----
+    { span: 5, keys: [
       k('shift', 'SHIFT', 'shift', null, null, { kind: 'shift' }),
-      k('mode', 'MODE', 'mode'),
-      k('pi', 'π', 'pi', 'RAN#', 'random', {
-        modes: { BASE: { shift: 'Neg', shiftAction: 'neg' } }
+      k('dec', 'DEC', 'base:DEC', 'BIN', 'base:BIN'),
+      k('hex', 'HEX', 'base:HEX', 'OCT', 'base:OCT'),
+      k('p1', 'P1', 'prog:P1'),
+      k('p2', 'P2', 'prog:P2'),
+      k('mode', 'MODE', 'mode', 'PCL', 'prog:PCL', { kind: 'mode' })
+    ] },
+    { span: 5, keys: [
+      k('abc', 'a b/c', 'frac', 'd/c', 'improper'),
+      k('eng', 'ENG', 'eng', '←', 'engback', {
+        foot: 'NOT',
+        modes: { BASE: { shift: 'NOT', shiftAction: 'not' } }
       }),
-      k('min', 'Min', 'min', 'Kin', 'kin'),
-      k('mr', 'MR', 'mr', 'Kout', 'kout', {
-        modes: {
-          SD: { shift: 'DEL', shiftAction: 'statdel' },
-          LR: { shift: 'DEL', shiftAction: 'statdel' }
-        }
-      })
-    ],
-    [
-      k('inv', 'x⁻¹', 'inv', 'x!', 'fact', {
-        modes: {
-          LR: { shift: 'x̂', shiftAction: 'stat:xhat' },
-          BASE: { label: 'A', action: 'hex:A', shift: 'DEC', shiftAction: 'base:DEC' }
-        }
-      }),
-      k('sqr', 'x²', 'sqr', '√', 'sqrt', {
-        modes: {
-          LR: { shift: 'ŷ', shiftAction: 'stat:yhat' },
-          BASE: { label: 'B', action: 'hex:B', shift: 'HEX', shiftAction: 'base:HEX' }
-        }
-      }),
-      k('pow', 'xʸ', 'pow', 'ˣ√y', 'xroot', {
-        modes: { BASE: { label: 'C', action: 'hex:C', shift: 'BIN', shiftAction: 'base:BIN' } }
+      k('sqrt', '√', 'sqrt', 'x²', 'sqr', {
+        foot: 'AND',
+        modes: { BASE: { shift: 'AND', shiftAction: 'and' } }
       }),
       k('log', 'log', 'log', '10ˣ', 'pow10', {
-        modes: {
-          LR: { shift: 'ȳ', shiftAction: 'stat:meany' },
-          BASE: { label: 'D', action: 'hex:D', shift: 'OCT', shiftAction: 'base:OCT' }
-        }
+        foot: 'OR',
+        modes: { BASE: { shift: 'OR', shiftAction: 'or' } }
       }),
       k('ln', 'ln', 'ln', 'eˣ', 'expe', {
-        modes: {
-          LR: { shift: 'yσn', shiftAction: 'stat:sdyn' },
-          BASE: { label: 'E', action: 'hex:E', shift: null, shiftAction: null }
-        }
+        foot: 'XOR',
+        modes: { BASE: { shift: 'XOR', shiftAction: 'xor' } }
+      }),
+      k('pow', 'xʸ', 'pow', 'x¹ᐟʸ', 'xroot', {
+        foot: 'XNOR',
+        modes: { BASE: { shift: 'XNOR', shiftAction: 'xnor' } }
       })
-    ],
-    [
-      k('sin', 'sin', 'sin', 'sin⁻¹', 'asin', {
-        modes: {
-          LR: { shift: 'yσn-1', shiftAction: 'stat:sdyn1' },
-          BASE: { label: 'F', action: 'hex:F', shift: 'and', shiftAction: 'and' }
-        }
-      }),
-      k('cos', 'cos', 'cos', 'cos⁻¹', 'acos', {
-        modes: { BASE: { shift: 'or', shiftAction: 'or' } }
-      }),
-      k('tan', 'tan', 'tan', 'tan⁻¹', 'atan', {
-        modes: { BASE: { shift: 'xor', shiftAction: 'xor' } }
-      }),
-      k('hyp', 'hyp', 'hyp', 'hyp⁻¹', 'ahyp', {
-        modes: { BASE: { shift: 'xnor', shiftAction: 'xnor' } }
+    ] },
+    // BASE-N 的十六進 A–F 剛好佔滿這一行
+    { span: 5, keys: [
+      k('sign', '+/−', 'sign', '∛', 'cbrt', {
+        foot: 'A  NEG',
+        modes: { BASE: { label: 'A', action: 'hex:A', shift: 'NEG', shiftAction: 'neg' } }
       }),
       k('dms', '°’”', 'dms', '←', 'todms', {
-        modes: { BASE: { shift: 'Not', shiftAction: 'not' } }
+        foot: 'B',
+        modes: { BASE: { label: 'B', action: 'hex:B', shift: null, shiftAction: null } }
+      }),
+      k('hyp', 'hyp', 'hyp', 'hyp⁻¹', 'ahyp', {
+        foot: 'C',
+        modes: { BASE: { label: 'C', action: 'hex:C', shift: null, shiftAction: null } }
+      }),
+      k('sin', 'sin', 'sin', 'sin⁻¹', 'asin', {
+        foot: 'D',
+        modes: { BASE: { label: 'D', action: 'hex:D', shift: null, shiftAction: null } }
+      }),
+      k('cos', 'cos', 'cos', 'cos⁻¹', 'acos', {
+        foot: 'E',
+        modes: { BASE: { label: 'E', action: 'hex:E', shift: null, shiftAction: null } }
+      }),
+      k('tan', 'tan', 'tan', 'tan⁻¹', 'atan', {
+        foot: 'F',
+        modes: { BASE: { label: 'F', action: 'hex:F', shift: null, shiftAction: null } }
       })
-    ],
-    [
-      k('open', '(', 'open', 'Pol(', 'pol'),
-      k('close', ')', 'close', 'Rec(', 'rec', {
+    ] },
+    { span: 5, keys: [
+      k('open', '[(', 'open', '1/x', 'inv'),
+      k('close', ')]', 'close', 'x!', 'fact', {
         modes: {
-          SD: { shift: ',', shiftAction: 'comma' },
-          LR: { shift: ',', shiftAction: 'comma' }
+          SD: { foot: '⌊ŷ⌋⌊x̂⌋' },
+          LR: { foot: '⌊ŷ⌋⌊x̂⌋', shift: 'x̂', shiftAction: 'stat:xhat' }
         }
       }),
-      k('eng', 'ENG', 'eng', 'ENG→', 'engback'),
-      k('dt', 'x↔y', 'swap', null, null, {
-        modes: {
-          SD: { label: 'DT', action: 'dt', shift: 'CL', shiftAction: 'statclear' },
-          LR: { label: 'DT', action: 'dt', shift: 'CL', shiftAction: 'statclear' }
-        }
-      }),
+      k('kin', 'Kin', 'kin', 'X↔Y', 'swap'),
+      k('kout', 'Kout', 'kout', 'X↔K', 'swapk'),
+      k('mr', 'MR', 'mr', 'Min', 'min'),
       k('mplus', 'M+', 'mplus', 'M−', 'mminus')
-    ],
-    [
-      k('d7', '7', 'digit:7', null, null, { kind: 'num', modes: {
-        SD: { shift: 'n', shiftAction: 'stat:n' },
-        LR: { shift: 'A', shiftAction: 'stat:A' }
+    ] },
+    // ---- 數字區：5 欄 ----
+    { span: 6, keys: [
+      k('d7', '7', 'digit:7', 'x>0', 'prog:x>0', { kind: 'num', modes: {
+        SD: stat('A', null, null, null), LR: stat('A', null, null, null)
       } }),
-      k('d8', '8', 'digit:8', null, null, { kind: 'num', modes: {
-        SD: { shift: 'Σx', shiftAction: 'stat:sumx' },
-        LR: { shift: 'B', shiftAction: 'stat:B' }
+      k('d8', '8', 'digit:8', 'x≥M', 'prog:x≥M', { kind: 'num', modes: {
+        SD: stat('B', null, null, null), LR: stat('B', null, null, null)
       } }),
-      k('d9', '9', 'digit:9', null, null, { kind: 'num', modes: {
-        SD: { shift: 'Σx²', shiftAction: 'stat:sumx2' },
-        LR: { shift: 'r', shiftAction: 'stat:r' }
+      k('d9', '9', 'digit:9', 'RTN', 'prog:RTN', { kind: 'num', modes: {
+        SD: stat('r', null, null, null), LR: stat('r', null, null, null)
       } }),
-      k('ac', 'AC', 'ac', 'OFF', 'off', { kind: 'ac' }),
-      k('c', 'C', 'clear', 'RND', 'rnd', { kind: 'ac' })
-    ],
-    [
+      k('c', 'C', 'clear', null, null, { kind: 'ac' }),
+      k('ac', 'AC', 'ac', 'KAC', 'kac', { kind: 'ac' })
+    ] },
+    { span: 6, keys: [
       k('d4', '4', 'digit:4', null, null, { kind: 'num', modes: {
-        SD: { shift: 'x̄', shiftAction: 'stat:meanx' },
-        LR: { shift: 'x̄', shiftAction: 'stat:meanx' }
+        SD: stat('ȳ', 'Σy²', 'Σy²', 'stat:sumy2'),
+        LR: stat('ȳ', 'Σy²', 'Σy²', 'stat:sumy2')
       } }),
       k('d5', '5', 'digit:5', null, null, { kind: 'num', modes: {
-        SD: { shift: 'xσn', shiftAction: 'stat:sdxn' },
-        LR: { shift: 'xσn', shiftAction: 'stat:sdxn' }
+        SD: stat('yσn', 'Σy', 'Σy', 'stat:sumy'),
+        LR: stat('yσn', 'Σy', 'Σy', 'stat:sumy')
       } }),
       k('d6', '6', 'digit:6', null, null, { kind: 'num', modes: {
-        SD: { shift: 'xσn-1', shiftAction: 'stat:sdxn1' },
-        LR: { shift: 'xσn-1', shiftAction: 'stat:sdxn1' }
+        SD: stat('yσn-1', 'Σxy', 'Σxy', 'stat:sumxy'),
+        LR: stat('yσn-1', 'Σxy', 'Σxy', 'stat:sumxy')
       } }),
-      k('mul', '×', 'mul', null, null, { kind: 'op' }),
-      k('div', '÷', 'div', null, null, { kind: 'op' })
-    ],
-    [
+      k('mul', '×', 'mul', 'nPr', 'npr', { kind: 'op' }),
+      k('div', '÷', 'div', 'nCr', 'ncr', { kind: 'op' })
+    ] },
+    { span: 6, keys: [
       k('d1', '1', 'digit:1', null, null, { kind: 'num', modes: {
-        SD: { shift: 'n', shiftAction: 'stat:n' },
-        LR: { shift: 'n', shiftAction: 'stat:n' }
+        SD: stat('x̄', 'Σx²', 'Σx²', 'stat:sumx2'),
+        LR: stat('x̄', 'Σx²', 'Σx²', 'stat:sumx2')
       } }),
       k('d2', '2', 'digit:2', null, null, { kind: 'num', modes: {
-        SD: { shift: 'Σx', shiftAction: 'stat:sumx' },
-        LR: { shift: 'Σx', shiftAction: 'stat:sumx' }
+        SD: stat('xσn', 'Σx', 'Σx', 'stat:sumx'),
+        LR: stat('xσn', 'Σx', 'Σx', 'stat:sumx')
       } }),
       k('d3', '3', 'digit:3', null, null, { kind: 'num', modes: {
-        SD: { shift: 'Σx²', shiftAction: 'stat:sumx2' },
-        LR: { shift: 'Σx²', shiftAction: 'stat:sumx2' }
+        SD: stat('xσn-1', 'n', 'n', 'stat:n'),
+        LR: stat('xσn-1', 'n', 'n', 'stat:n')
       } }),
-      k('add', '+', 'add', null, null, { kind: 'op' }),
-      k('sub', '−', 'sub', null, null, { kind: 'op' })
-    ],
-    [
-      k('d0', '0', 'digit:0', null, null, { kind: 'num', modes: {
-        LR: { shift: 'Σy', shiftAction: 'stat:sumy' }
-      } }),
-      k('dot', '·', 'point', null, null, { kind: 'num', modes: {
-        LR: { shift: 'Σy²', shiftAction: 'stat:sumy2' }
-      } }),
-      k('exp', 'EXP', 'exp', null, null, { kind: 'num', modes: {
-        LR: { shift: 'Σxy', shiftAction: 'stat:sumxy' }
-      } }),
-      k('sign', '+/−', 'sign', null, null, { kind: 'num' }),
-      k('equals', '=', 'equals', '%', 'percent', { kind: 'eq' })
-    ]
+      k('add', '+', 'add', 'R→P', 'pol', { kind: 'op' }),
+      k('sub', '−', 'sub', 'P→R', 'rec', { kind: 'op' })
+    ] },
+    { span: 6, keys: [
+      k('d0', '0', 'digit:0', 'RND', 'rnd', { kind: 'num' }),
+      k('dot', '·', 'point', 'RAN#', 'random', { kind: 'num' }),
+      k('exp', 'EXP', 'exp', 'π', 'pi', { kind: 'num' }),
+      k('equals', '=', 'equals', '%', 'percent', { kind: 'eq' }),
+      k('run', 'RUN', 'prog:RUN', 'ENT', 'prog:ENT', { kind: 'run', modes: {
+        SD: { label: 'RUN', action: 'dt', foot: 'DATA', shift: 'DEL', shiftAction: 'statdel' },
+        LR: { label: 'RUN', action: 'dt', foot: 'DATA', shift: 'DEL', shiftAction: 'statdel' }
+      } })
+    ] }
   ];
 
+  // Kout + 數字鍵讀取的統計變數（左方括號）
+  var KOUT_STAT = {
+    d1: 'meanx', d2: 'sdxn', d3: 'sdxn1',
+    d4: 'meany', d5: 'sdyn', d6: 'sdyn1',
+    d7: 'A', d8: 'B', d9: 'r',
+    close: 'yhat'
+  };
+
   var BY_ID = {};
+  var ALL = [];
   ROWS.forEach(function (row) {
-    row.forEach(function (key) { BY_ID[key.id] = key; });
+    row.keys.forEach(function (key) { BY_ID[key.id] = key; ALL.push(key); });
   });
 
   // 取得某鍵在指定模式下的實際定義（已套用模式覆寫）
@@ -182,7 +192,6 @@
     return merged;
   }
 
-  // 解析按鍵：回傳實際要執行的 action（null 表示該鍵在此狀態下無定義）
   function resolve(id, mode, shifted) {
     var key = BY_ID[id];
     if (!key) { return null; }
@@ -190,5 +199,8 @@
     return shifted ? v.shiftAction : v.action;
   }
 
-  return { ROWS: ROWS, BY_ID: BY_ID, view: view, resolve: resolve };
+  return {
+    ROWS: ROWS, BY_ID: BY_ID, ALL: ALL, KOUT_STAT: KOUT_STAT,
+    view: view, resolve: resolve
+  };
 });

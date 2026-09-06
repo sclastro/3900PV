@@ -1,8 +1,8 @@
 /*
- * 運算核心測試： node --test tests/
+ * 運算核心測試： node --test tests/*.test.js
  *
  * 以按鍵序列驅動，貼近真機操作：'S' = SHIFT，數字逐位輸入，
- * 其餘可直接用 keypad.js 的鍵 id（如 sin、mode、dt、d5）。
+ * 其餘可直接用 keypad.js 的鍵 id（如 sin、mode、run、kout、d5）。
  */
 'use strict';
 
@@ -42,29 +42,22 @@ test('顯示為 10 位有效數字', () => {
   assert.strictEqual(show('1 0 0 ÷ 3 ='), '33.33333333');
 });
 
-test('NORM 1 與 NORM 2 的指數門檻', () => {
+test('MODE 9：NORM 1 與 NORM 2 的指數門檻', () => {
   assert.strictEqual(show('1 ÷ 1 0 0 0 ='), '1. ×10^-03');
   assert.strictEqual(show('mode 9 2 1 ÷ 1 0 0 0 ='), '0.001');
   assert.strictEqual(show('1 2 3 4 5 6 7 8 9 0 × 1 0 0 ='), '1.23456789 ×10^11');
 });
 
-test('括號', () => {
+test('括號（[( 與 )]）', () => {
   assert.strictEqual(show('( 2 + 3 ) × 4 ='), '20.');
   assert.strictEqual(show('2 × ( 3 + ( 4 - 1 ) ) ='), '12.');
   assert.strictEqual(show('( 2 + 3 × ( 4 - 1 ='), '11.');   // = 自動補回括號
-});
-
-test('括號最多 6 層', () => {
   const c = calc();
   c.run('( ( ( ( ( ( (');
-  assert.strictEqual(c.getDisplay().indicators.paren, 6);
+  assert.strictEqual(c.getDisplay().indicators.paren, 6);   // 最多 6 層
 });
 
-test('數字後直接按左括號視為乘（模擬器取捨）', () => {
-  assert.strictEqual(show('3 ( 2 + 4 ) ='), '18.');
-});
-
-test('百分比', () => {
+test('百分比（SHIFT =）', () => {
   assert.strictEqual(show('2 0 0 + 1 0 S ='), '220.');
   assert.strictEqual(show('2 0 0 - 1 0 S ='), '180.');
   assert.strictEqual(show('2 0 0 × 1 0 S ='), '20.');
@@ -72,13 +65,19 @@ test('百分比', () => {
   assert.strictEqual(show('5 0 S ='), '0.5');
 });
 
-test('倒數、平方、開方、階乘、任意次方根', () => {
-  assert.strictEqual(show('4 inv'), '0.25');
-  assert.strictEqual(show('1 2 sqr'), '144.');
-  assert.strictEqual(show('2 5 S sqr'), '5.');
-  assert.strictEqual(show('5 S inv'), '120.');
+test('倒數、平方、開方、立方根、階乘、任意次方根', () => {
+  assert.strictEqual(show('4 S ('), '0.25');          // SHIFT [( = 1/x
+  assert.strictEqual(show('1 2 S sqrt'), '144.');     // SHIFT √ = x²
+  assert.strictEqual(show('2 5 sqrt'), '5.');
+  assert.strictEqual(show('2 7 S sign'), '3.');       // SHIFT +/− = ∛
+  assert.strictEqual(show('5 S )'), '120.');          // SHIFT )] = x!
   assert.strictEqual(show('2 pow 1 0 ='), '1024.');
-  assert.strictEqual(show('3 S pow 8 ='), '2.');
+  assert.strictEqual(show('3 S pow 8 ='), '2.');      // 3ˣ√8
+});
+
+test('排列與組合（SHIFT × 與 SHIFT ÷）', () => {
+  assert.strictEqual(show('5 S × 3 ='), '60.');
+  assert.strictEqual(show('5 S ÷ 3 ='), '10.');
 });
 
 test('三角函數（DEG）', () => {
@@ -89,8 +88,8 @@ test('三角函數（DEG）', () => {
   assert.strictEqual(show('0 . 5 S sin'), '30.');
 });
 
-test('RAD 與 GRA', () => {
-  assert.strictEqual(show('mode 5 pi ÷ 2 = sin'), '1.');
+test('MODE 5／6：RAD 與 GRA', () => {
+  assert.strictEqual(show('mode 5 S exp ÷ 2 = sin'), '1.');   // SHIFT EXP = π
   assert.strictEqual(show('mode 6 1 0 0 sin'), '1.');
 });
 
@@ -115,21 +114,35 @@ test('錯誤狀態只有 AC 或 C 可解除', () => {
   c.run('AC');
   assert.strictEqual(c.text(), '0.');
   assert.strictEqual(show('1 ÷ 0 ='), '-E-');
-  assert.strictEqual(show('1 sign S sqr'), '-E-');       // √(−1)
+  assert.strictEqual(show('1 sign sqrt'), '-E-');       // √(−1)
 });
 
-test('獨立記憶 M 與常數記憶 K', () => {
+test('分數 a b/c', () => {
+  assert.strictEqual(show('1 abc 2 + 1 abc 3 ='), '5⌐6');
+  assert.strictEqual(show('3 abc 1 abc 2 + 1 abc 2 ='), '4⌐0⌐1'.replace('4⌐0⌐1', '4.'));
+  assert.strictEqual(show('2 abc 3 × 3 ='), '2.');
+  assert.strictEqual(show('1 abc 2 + 1 abc 3 = S abc'), '5⌐6');   // d/c 假分數：5/6 本已是真分數
+  assert.strictEqual(show('1 abc 2 + 1 abc 3 = abc'), '0.833333333');  // 再按 a b/c 轉小數
+  assert.strictEqual(show('7 abc 4 ='), '1⌐3⌐4');
+  assert.strictEqual(show('7 abc 4 = S abc'), '7⌐4');             // 帶分數 ↔ 假分數
+});
+
+test('記憶 M 與常數記憶 K', () => {
   const c = calc();
-  c.run('5 min 3 mplus');
+  c.run('5 S mr 3 mplus');                              // SHIFT MR = Min
   assert.strictEqual(c.run('mr'), '8.');
   c.run('2 S mplus');
   assert.strictEqual(c.run('mr'), '6.');
   assert.strictEqual(c.getDisplay().indicators.m, true);
 
   const d = calc();
-  d.run('9 S min');                                      // Kin
-  assert.strictEqual(d.run('1 + S mr ='), '10.');        // Kout
+  d.run('9 kin');
+  assert.strictEqual(d.run('1 + kout ='), '10.');
   assert.strictEqual(d.getDisplay().indicators.k, true);
+  d.run('4 2 S kout');                                  // X↔K
+  assert.strictEqual(d.run('kout'), '42.');
+  d.run('S ac');                                        // KAC
+  assert.strictEqual(d.getDisplay().indicators.k, false);
 });
 
 test('EXP 與正負號', () => {
@@ -138,11 +151,11 @@ test('EXP 與正負號', () => {
   assert.strictEqual(show('5 sign + 2 ='), '-3.');
 });
 
-test('FIX、SCI 與 RND', () => {
+test('MODE 7／8：FIX、SCI 與 RND', () => {
   assert.strictEqual(show('mode 7 2 1 ÷ 3 ='), '0.33');
   assert.strictEqual(show('mode 8 3 1 2 3 4 ='), '1.23 ×10^03');
   const c = calc();
-  c.run('mode 7 2 1 ÷ 3 = S c');                         // RND：內部值亦捨入
+  c.run('mode 7 2 1 ÷ 3 = S d0');                       // SHIFT 0 = RND
   assert.strictEqual(c.value(), 0.33);
 });
 
@@ -159,87 +172,92 @@ test('工程記數法 ENG', () => {
   assert.strictEqual(show('1 2 3 4 5 eng S eng'), '0.012345 ×10^06');
 });
 
-test('極座標與直角座標轉換', () => {
+test('座標轉換 R→P 與 P→R（SHIFT + 與 SHIFT −）', () => {
   const c = calc();
-  assert.strictEqual(c.run('3 S open 4 ='), '5.');       // Pol(3,4) → r
-  assert.strictEqual(c.run('dt'), '53.13010235');        // x↔y → θ
+  assert.strictEqual(c.run('3 S + 4 ='), '5.');         // R→P(3,4) → r
+  assert.strictEqual(c.run('S kin'), '53.13010235');    // X↔Y → θ
   const d = calc();
-  assert.strictEqual(d.run('2 S close 6 0 ='), '1.');    // Rec(2,60°) → x
-  assert.strictEqual(d.run('dt'), '1.732050808');
+  assert.strictEqual(d.run('2 S - 6 0 ='), '1.');       // P→R(2,60°) → x
+  assert.strictEqual(d.run('S kin'), '1.732050808');
 });
 
-test('SD 模式：n、Σx、平均數、標準差', () => {
+test('MODE 3（SD）：資料輸入與統計值', () => {
   const c = calc();
-  c.run('mode 1 1 0 dt 2 0 dt 3 0 dt');
-  assert.strictEqual(c.run('S d1'), '3.');               // n
-  assert.strictEqual(c.run('S d2'), '60.');              // Σx
-  assert.strictEqual(c.run('S d3'), '1400.');            // Σx²
-  assert.strictEqual(c.run('S d4'), '20.');              // x̄
-  assert.strictEqual(c.run('S d5'), '8.164965809');      // xσn
-  assert.strictEqual(c.run('S d6'), '10.');              // xσn−1
+  c.run('mode 3 1 0 DATA 2 0 DATA 3 0 DATA');
+  assert.strictEqual(c.run('S d3'), '3.');              // SHIFT 3 = n
+  assert.strictEqual(c.run('S d2'), '60.');             // SHIFT 2 = Σx
+  assert.strictEqual(c.run('S d1'), '1400.');           // SHIFT 1 = Σx²
+  assert.strictEqual(c.run('kout d1'), '20.');          // Kout 1 = x̄
+  assert.strictEqual(c.run('kout d2'), '8.164965809');  // Kout 2 = xσn
+  assert.strictEqual(c.run('kout d3'), '10.');          // Kout 3 = xσn−1
 });
 
-test('SD 模式：帶次數輸入的兩種方式', () => {
-  const a = calc();
-  a.run('mode 1 5 × 3 dt 1 0 dt');
-  assert.strictEqual(a.run('S d1'), '4.');
-  assert.strictEqual(a.run('S d4'), '6.25');
-
-  const b = calc();
-  b.run('mode 1 5 S close 3 dt 1 0 dt');
-  assert.strictEqual(b.run('S d1'), '4.');
-  assert.strictEqual(b.run('S d4'), '6.25');
-});
-
-test('SD 模式：刪除上一筆與清除全部', () => {
+test('MODE 3（SD）：帶次數輸入、刪除與清除', () => {
   const c = calc();
-  c.run('mode 1 1 0 dt 2 0 dt 9 9 9 dt');
-  c.run('S mr');                                         // DEL
-  assert.strictEqual(c.run('S d1'), '2.');
-  c.run('S dt');                                         // CL
-  assert.strictEqual(c.run('S d1'), '0.');
+  c.run('mode 3 5 × 3 DATA 1 0 DATA');
+  assert.strictEqual(c.run('S d3'), '4.');
+  assert.strictEqual(c.run('kout d1'), '6.25');
+
+  c.run('9 9 9 DATA');
+  c.run('S run');                                       // SHIFT RUN = DEL
+  assert.strictEqual(c.run('S d3'), '4.');
+  c.run('S ac');                                        // KAC 一併清除統計記憶
+  assert.strictEqual(c.run('S d3'), '0.');
 });
 
-test('LR 模式：迴歸係數與估計值', () => {
+test('MODE 2（LR）：迴歸係數與估計值', () => {
   const c = calc();
-  c.run('mode 2 1 S close 2 dt 2 S close 4 dt 3 S close 6 dt');
-  assert.strictEqual(c.run('S d1'), '3.');               // n
-  assert.strictEqual(c.run('S d7'), '0.');               // A
-  assert.strictEqual(c.run('S d8'), '2.');               // B
-  assert.strictEqual(c.run('S d9'), '1.');               // r
-  assert.strictEqual(c.run('1 0 S sqr'), '20.');         // ŷ(10)
-  assert.strictEqual(c.run('2 0 S inv'), '10.');         // x̂(20)
-  assert.strictEqual(c.run('S exp'), '28.');             // Σxy
+  c.run('mode 2 1 × 3 0 DATA 2 × 4 5 DATA 3 × 5 5 DATA 4 × 7 0 DATA');
+  assert.strictEqual(c.run('S d3'), '4.');              // n
+  assert.strictEqual(c.run('kout d7'), '17.5');         // A
+  assert.strictEqual(c.run('kout d8'), '13.');          // B
+  assert.strictEqual(c.run('kout d9'), '0.997054486');  // r
+  assert.strictEqual(c.run('5 kout )'), '82.5');        // Kout )] = ŷ(5)
+  assert.strictEqual(c.run('8 2 . 5 S )'), '5.');       // SHIFT )] = x̂(82.5)
+  assert.strictEqual(c.run('S d6'), '565.');            // SHIFT 6 = Σxy
 });
 
-test('BASE 模式：數制轉換', () => {
+test('MODE 0（BASE-N）：數制轉換', () => {
   const c = calc();
-  c.run('mode 3 2 5 5');
-  assert.strictEqual(c.run('S sqr'), 'FF');              // → HEX
-  assert.strictEqual(c.run('S pow'), '11111111');        // → BIN
-  assert.strictEqual(c.run('S log'), '377');             // → OCT
-  assert.strictEqual(c.run('S inv'), '255');             // → DEC
+  c.run('mode 0 2 5 5');
+  assert.strictEqual(c.run('hex'), 'FF');
+  assert.strictEqual(c.run('S hex'), '377');            // SHIFT HEX = OCT
+  assert.strictEqual(c.run('S dec'), '11111111');       // SHIFT DEC = BIN
+  assert.strictEqual(c.run('dec'), '255');
 });
 
-test('BASE 模式：負數以 32 位二補數顯示', () => {
+test('MODE 0（BASE-N）：負數、邏輯運算與整數除法', () => {
   const c = calc();
-  c.run('mode 3 1 sign');
-  assert.strictEqual(c.run('S sqr'), 'FFFFFFFF');
+  c.run('mode 0 1 S sign');                             // SHIFT +/− = NEG
+  assert.strictEqual(c.run('hex'), 'FFFFFFFF');
+  // 十六進 A–F 在 +/−、°’”、hyp、sin、cos、tan 一行：F0 and 3C
+  assert.strictEqual(c.run('AC tan 0 S sqrt 3 hyp ='), '30');
+  assert.strictEqual(c.run('AC 3 0 S ln 0 hyp ='), '3C');         // 30 xor 0C
+  assert.strictEqual(c.run('dec 7 ÷ 2 ='), '3');
 });
 
-test('BASE 模式：邏輯運算與整數除法', () => {
+test('基數鍵在其他模式無效並給出提示', () => {
   const c = calc();
-  c.run('mode 3 S sqr');                                 // 轉 HEX
-  assert.strictEqual(c.run('sin 0 S sin 3 pow ='), '30');  // F0 and 3C
-  assert.strictEqual(c.run('S inv 7 ÷ 2 ='), '3');       // 轉 DEC，整數除法截尾
-});
-
-test('關機與開機', () => {
-  const c = calc();
-  c.run('5 + 3 =');
-  c.press('shift');
-  c.press('ac');                                         // SHIFT AC = OFF
-  assert.strictEqual(c.getDisplay().on, false);
-  c.press('ac');
+  c.press('hex');
+  assert.ok(/BASE-N/.test(c.getDisplay().indicators.note));
   assert.strictEqual(c.text(), '0.');
+});
+
+test('未實作的程式功能會提示而不改變狀態', () => {
+  const c = calc();
+  c.run('1 2 3');
+  c.press('p1');
+  assert.ok(/未實作/.test(c.getDisplay().indicators.note));
+  assert.strictEqual(c.text(), '123.');
+  c.press('mode'); c.press('d1');
+  assert.ok(/∫dx/.test(c.getDisplay().indicators.note));
+});
+
+test('MODE · 回到 RUN（一般計算）', () => {
+  const c = calc();
+  c.run('mode 3 1 0 DATA');
+  assert.strictEqual(c.mode, 'SD');
+  c.run('mode .');
+  assert.strictEqual(c.mode, 'COMP');
+  assert.strictEqual(c.run('2 + 3 ='), '5.');
 });
